@@ -13,13 +13,13 @@
     > *"For security reasons, many HPCs (e.g., TACC) do not allow Docker containers, but do allow Singularity containers."*
     > （官方文件參考：https://fmriprep.org/en/0.5.1/installation.html ）
 
-基於上述維運與安全考量，建議實驗室伺服器上將不開放透過 Docker 執行 fMRIPrep，請大家在查閱網路教學時特別留意此環境差異。
+基於上述維運與安全考量，實驗室伺服器上將不開放透過 Docker 執行 fMRIPrep，請大家在查閱網路教學時特別留意此環境差異。
 
 ---
 
 ## 2. 實驗室標準方案：Apptainer (原 Singularity)
 
-為了解決大家的運算需求並兼顧伺服器安全，建議實驗室全面採用 **Apptainer**（前身為 Singularity）作為標準的容器執行環境。這不僅是為了安全性，更能為我們的科學研究帶來實質好處：
+為了解決大家的運算需求並兼顧伺服器安全，實驗室全面採用 **Apptainer**（前身為 Singularity）作為標準的容器執行環境。這不僅是為了安全性，更能為我們的科學研究帶來實質好處：
 
 ### Apptainer 的架構與學術優勢：
 1. **無特權執行 (Rootless Execution)：** 專為高效能運算 (HPC) 設計，不需背景 root daemon 即可運行，安全性極高，且會自動對應大家原本的使用者身份存取檔案。
@@ -32,30 +32,23 @@
 * **需手動設定掛載路徑 (Manual Bind Mounting)：** 大家需要學習使用 `--bind` 參數，手動將本機的 BIDS 資料夾、輸出目錄以及 FreeSurfer License 映射進容器中。指令雖然會比網路上看到的稍長，但能幫助大家更清晰地掌握資料流向。
 * **映像檔的統一管理：** fMRIPrep 的 `.sif` 映像檔體積龐大（通常超過 10GB）。為避免佔用過多硬碟空間，實驗室將會在共用目錄統一放置一份映像檔供大家呼叫，請大家不要各自重複下載。
 
-**後續行動：** 實驗室稍後會提供 Apptainer 版本的 fMRIPrep 執行指令範本（包含如何正確設定 `--bind` 掛載路徑），讓大家熟悉其基本操作。
-
 ---
 
-## 3. 運算前置作業：BIDS 資料標準化建議與規範
+## 3. 原始資料 (Raw Data) 的 BIDS 結構化建議與轉換工具
 
-fMRIPrep 本身被設計為一個 "BIDS App"（基於 BIDS 標準開發的應用程式），這代表它在架構上**高度依賴且強制要求**輸入的檔案結構必須符合 **BIDS (Brain Imaging Data Structure)** 規範。
+fMRIPrep 本身被設計為一個 "BIDS App"，這代表它在架構上高度依賴且強制要求輸入的檔案結構必須符合 BIDS (Brain Imaging Data Structure) 規範。 
 
-* **官方規範依據：** 根據 fMRIPrep 官方使用說明，資料集的 BIDS 格式化是啟動管線的先決條件。
-    > *"The fMRIPrep pipeline takes an fMRI dataset (formatted according to the Brain Imaging Data Structure (BIDS))... To use fMRIPrep, the input dataset must be in BIDS format."*
-    > （官方文件參考：https://fmriprep.org/en/stable/usage.html ）
+### BIDS 目錄結構概覽：
+一個標準的 BIDS 資料夾，除了將 DICOM 轉換為 NIfTI (`.nii.gz`) 格式外，還必須具備嚴謹的階層命名與對應的 JSON Metadata 檔案。其基礎架構大致如下：
 
-### 未使用 BIDS 格式的潛在後果：
-若上傳的資料集未依循 BIDS 規範，將會面臨以下狀況，嚴重影響實驗室整體的運作效率：
-
-1. **管線啟動失敗 (Execution Failure)：** fMRIPrep 底層的解析器 (`pybids`) 會在運算初期直接報錯並終止程序。這會造成大家需要重新排隊運算，浪費排錯的時間。
-2. **演算法套用錯誤 (Resource Waste)：** 若資料命名模糊導致系統誤判（例如將功能性影像誤認為結構性影像），伺服器可能會花費數十小時進行錯誤的前處理，產生無效的數據，無謂消耗運算資源。
-3. **後續機器學習訓練瓶頸 (Downstream Bottlenecks)：** 實驗室未來常需將前處理完的 fMRI 影像投入深度學習模型中。若前端資料缺乏統一的目錄結構與 JSON metadata，後端的讀取程式將無法自動化批次處理，導致大家必須耗費大量精力撰寫客製化的資料清洗腳本。
-
-### 標準驗證流程建議：
-為了節省大家除錯的時間，我們強烈建議在將資料放上伺服器運算之前，先透過官方的 BIDS Validator 進行自我檢核。
-
-* **工具網址：** https://bids.neuroimaging.io/tools/validator.html
-* **使用說明：** 1. 這是一個非常方便的網頁端檢核工具。
-    2. 請直接在瀏覽器中開啟上述網址，並選擇你本機端整理好的資料夾。
-    3. **隱私與安全提示：** 此工具的設計十分安全，它僅會在你的本地端瀏覽器解析檔案的「檔名」與「目錄結構」，**絕對不會**將你的醫學影像檔案上傳至任何雲端伺服器，因此請安心使用。
-    4. 建議大家在確認網頁顯示 "0 Errors" 後，再將資料上傳至實驗室伺服器，這能確保你的 fMRIPrep 運算一次就能順利跑完。
+```text
+my_dataset/
+├── dataset_description.json
+├── participants.tsv
+├── sub-01/
+│   ├── anat/
+│   │   ├── sub-01_T1w.nii.gz
+│   │   └── sub-01_T1w.json
+│   └── func/
+│       ├── sub-01_task-rest_bold.nii.gz
+│       └── sub-01_task-rest_bold.json
