@@ -25,22 +25,28 @@
 
 1. **無特權執行 (Rootless Execution)：** 專為高效能運算 (HPC) 設計，不需 root 權限即可運行，且自動對應原本的使用者身份存取檔案。
 
-2. **避免污染系統環境 (Environment Isolation)：** 所有龐大的依賴軟體皆封裝在容器內，保持伺服器全域環境的純淨。
+2. **避免污染系統環境 (Environment Isolation)：** 所有龐大的依賴軟體（FSL, FreeSurfer 等）皆封裝在容器內，保持伺服器全域環境的純淨。
 
 3. **延續並確保實驗結果的絕對重現性 (Scientific Reproducibility)：** 透過不可變的 `.sif` 映像檔，確保各位的研究結果不會因為伺服器軟體更新而產生偏差，保證科學實驗的可重現性。
 
-### 使用注意事項：
+### 使用注意事項與後續行動：
 
-* **需手動設定掛載路徑 (Manual Bind Mounting)：** 大家需要學習使用 `--bind` 參數，手動將 BIDS 資料夾、輸出目錄以及 FreeSurfer License 映射進容器中。
+* **需手動設定掛載路徑 (Manual Bind Mounting)：** 大家需要學習使用 `--bind` 參數，手動將 BIDS 資料夾、輸出目錄以及 FreeSurfer License 映射進容器中。指令雖然會比網路上看到的稍長，但能幫助大家更清晰地掌握資料流向。
 
 * **映像檔的統一管理：** 實驗室在共用目錄提供統一的映像檔，請勿重複下載以節省硬碟空間。
+
+* **[後續行動] 自動化腳本支援：** 為了降低配置門檻並避免路徑設定錯誤，**實驗室後續將會撰寫並提供標準化的執行腳本 (Standardized Wrapper Script)**。該腳本將自動處理大部分的 `--bind` 掛載參數，方便大家一鍵呼叫 `.sif` 映像檔進行運算。
 
 ---
 
 ## 3. 原始資料 (Raw Data) 的 BIDS 結構化建議與轉換工具
 
-fMRIPrep 強制要求輸入的檔案結構必須符合 **BIDS** 規範，否則管線將無法運作。此項要求具備明確的官方依據與學術界實務建議：
+fMRIPrep 強制要求輸入的檔案結構必須符合 **BIDS** 規範，否則管線將無法運作。這是一項基於官方架構的硬性要求：
 
+> **"The fMRIPrep workflow takes as principal input the path of the dataset that is to be processed. The input dataset is required to be in valid BIDS format, and it must include at least one T1w structural image and (unless disabled with a flag) a BOLD series."**
+> — *Extract from fMRIPrep Usage Documentation (https://fmriprep.org/en/stable/usage.html)*
+
+### 參考依據與實務建議：
 * **官方文件出處：** https://fmriprep.org/en/stable/usage.html
 * **學術實務建議 (JNeuroLab)：** https://www.jneurolab.org/fmriprep-bids
 
@@ -59,14 +65,6 @@ my_dataset/
 │       └── sub-01_task-rest_bold.json
 ```
 
-### 自動化轉換工具建議：
-
-**強烈建議絕對不要手動建立目錄或手寫 JSON**。請使用標準工具從 DICOM 批次生成：
-
-1. **基礎轉換：** `dcm2niix`
-
-2. **自動化編排：** `dcm2bids` 或 `heudiconv`
-
 ---
 
 ## 4. 運算前置作業：BIDS 資料標準驗證流程
@@ -74,25 +72,22 @@ my_dataset/
 ### 未使用 BIDS 格式的潛在後果：
 
 1. **管線啟動失敗 (Execution Failure)：** 解析器會直接報錯並終止程序，浪費排隊運算時間。
-
 2. **演算法套用錯誤 (Resource Waste)：** 資料命名模糊可能導致系統誤判影像類型，消耗數十小時產生無效數據。
-
-3. **後續機器學習訓練瓶頸：** 缺乏統一結構會導致後端的資料讀取程式（Data Loader）無法自動化批次處理。
+3. **後續機器學習訓練瓶頸：** 缺乏統一結構會導致後端的資料讀取程式無法自動化處理。
 
 ### 標準驗證流程建議：
 
-強烈建議在上傳伺服器前，先透過官方工具進行自我檢核：
+為了確保資料品質並節省運算資源，官方強烈建議在啟動管線前進行驗證：
+
+> **"We highly recommend that you validate your dataset with the free, online BIDS Validator."**
+> — *Official Recommendation from fMRIPrep (https://fmriprep.org/en/stable/usage.html)*
 
 **選項 A：網頁端檢核工具 (適合初學者)**
-
 * **工具網址：** https://bids.neuroimaging.io/tools/validator.html
+* **說明：** 直接在瀏覽器開啟。此工具僅解析「檔名」，絕對不會上傳影像檔案。
 
-* **使用說明：** 直接在瀏覽器開啟網址並選擇資料夾。此工具僅解析「檔名」，**絕對不會**將影像檔案上傳至雲端。
-
-**選項 B：命令列檢核工具 CLI (適合進階使用者與自動化)**
-
+**選項 B：命令列檢核工具 CLI (適合進階與自動化)**
 * **官方 Github：** https://github.com/bids-standard/bids-validator
+* **優勢：** 直接在伺服器端對已上傳的資料集進行快速驗證，大幅提升效率。
 
-* **使用說明：** 大家可以直接在伺服器端對已上傳的資料集進行快速驗證，無須依賴圖形化介面，大幅提升批次處理效率。
-
-**最終放行標準：** 確認驗證結果顯示 **"0 Errors"** 後再啟動 fMRIPrep，確保資源有效運用。
+**最終放行標準：** 確認驗證結果顯示 **"0 Errors"** 後再啟動運算管線。
